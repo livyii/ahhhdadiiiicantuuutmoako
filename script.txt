@@ -1,0 +1,1752 @@
+-- livyii silent aim - halloween edition 🎃 + game-native shiftlock
+print("[livyii] starting...")
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local cam = workspace.CurrentCamera
+local mouse = LocalPlayer:GetMouse()
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local StarterGui = game:GetService("StarterGui")
+
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local ui_flow_active = true
+
+local function notify(title, text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title, Text = text, Duration = duration or 3
+        })
+    end)
+end
+
+local function clear_blurs()
+    for _, v in ipairs(Lighting:GetChildren()) do
+        if v:IsA("BlurEffect") then v:Destroy() end
+    end
+end
+
+local function spawn_float_particles(parent, emojis, count)
+    for i = 1, count do
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(0, 20, 0, 20)
+        lbl.Position = UDim2.new(math.random() * 1, 0, math.random() * 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = emojis[math.random(1, #emojis)]
+        lbl.TextSize = math.random(12, 18)
+        lbl.TextTransparency = 0.35
+        lbl.Font = Enum.Font.Gotham
+        lbl.Parent = parent
+        task.spawn(function()
+            while lbl.Parent do
+                local start_y = lbl.Position.Y.Scale
+                TweenService:Create(lbl, TweenInfo.new(math.random(4, 8), Enum.EasingStyle.Linear), {
+                    Position = UDim2.new(lbl.Position.X.Scale, 0, start_y - 0.15, 0),
+                    TextTransparency = 0.85,
+                }):Play()
+                task.wait(8)
+                if not lbl.Parent then break end
+                lbl.Position = UDim2.new(math.random() * 1, 0, 1, 0)
+                lbl.TextTransparency = 0.35
+            end
+        end)
+    end
+end
+
+-- 🎃 halloween palette 🎃
+local YELLOW = Color3.fromRGB(255, 130, 30)
+local CREAM = Color3.fromRGB(45, 25, 65)
+local BROWN = Color3.fromRGB(65, 30, 95)
+local PINK = Color3.fromRGB(165, 90, 220)
+local WHITE = Color3.fromRGB(255, 255, 255)
+local SOFT_PINK = Color3.fromRGB(195, 155, 235)
+local BG_COLOR = Color3.fromRGB(22, 12, 35)
+local BORDER_SOFT = Color3.fromRGB(85, 50, 120)
+local DEEP_BROWN = Color3.fromRGB(255, 215, 170)
+local CARD_SOFT = Color3.fromRGB(48, 28, 72)
+local MUTED_TEXT = Color3.fromRGB(165, 135, 200)
+local CARAMEL = Color3.fromRGB(255, 100, 25)
+
+local SMOOTH = Enum.EasingStyle.Quint
+local SOFT = Enum.EasingStyle.Cubic
+local DIR_OUT = Enum.EasingDirection.Out
+local DIR_IN = Enum.EasingDirection.In
+
+local DEV_USERS = {
+    ["livyiilolly"] = true,
+    ["narvstar"] = true,
+    ["2lmost"] = true,
+    ["natalie_nunnlee"] = true,
+}
+local is_dev = DEV_USERS[LocalPlayer.Name:lower()] or false
+
+local genv = getgenv and getgenv() or _G
+genv.SilentAim = genv.SilentAim or {
+    Enabled = true, FOVRadius = 150, HitPart = "HumanoidRootPart", TeamCheck = false,
+    RequireTool = true, KnockCheck = true, WallCheck = false, RevolverBypass = false,
+    UseCursorAim = UIS.MouseEnabled, ShiftlockEnabled = false,
+    CrosshairEnabled = true, CrosshairSize = 10, CrosshairGap = 4, CrosshairThickness = 1.5,
+    CrosshairPosition = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2),
+    ToggleKey = Enum.KeyCode.RightShift, HighlightEnabled = true, TracerEnabled = true,
+    CrosshairOutlineEnabled = true, CrosshairOutlineThickness = 2.5,
+    CrosshairRotationEnabled = true, CrosshairRotationSpeed = 1.5, FollowTarget = true,
+    FOVCircleEnabled = true, FOVCircleThickness = 1.5, FOVCircleTransparency = 0.5,
+    CrosshairHue = 25, TracerHue = 280, FOVHue = 280,
+    AutoPredictionEnabled = true, PredictionStrength = 0.15,
+    TargetInfoEnabled = true,
+    TargetedPlayers = {},
+    RightClickShiftlock = true,
+}
+local cfg = genv.SilentAim
+if not cfg.TargetedPlayers then cfg.TargetedPlayers = {} end
+if cfg.RightClickShiftlock == nil then cfg.RightClickShiftlock = true end
+
+local function cleanup_targets()
+    for plr, _ in pairs(cfg.TargetedPlayers) do
+        if not plr.Parent then cfg.TargetedPlayers[plr] = nil end
+    end
+end
+
+local function has_active_whitelist()
+    cleanup_targets()
+    for _ in pairs(cfg.TargetedPlayers) do return true end
+    return false
+end
+
+local function is_whitelisted(player)
+    return cfg.TargetedPlayers[player] == true
+end
+
+-- 🎃 find the game's own shiftlock button and press it 🎃
+local shiftlock_button_cache = nil
+
+local function find_shiftlock_button()
+    if shiftlock_button_cache and shiftlock_button_cache.Parent then
+        return shiftlock_button_cache
+    end
+    shiftlock_button_cache = nil
+
+    local search_roots = { PlayerGui }
+    pcall(function()
+        if gethui then table.insert(search_roots, gethui()) end
+    end)
+    pcall(function()
+        table.insert(search_roots, game:GetService("CoreGui"))
+    end)
+
+    for _, root in ipairs(search_roots) do
+        local ok, descs = pcall(function() return root:GetDescendants() end)
+        if ok and descs then
+            for _, d in ipairs(descs) do
+                if d:IsA("GuiButton") then
+                    local n = d.Name:lower()
+                    if n:find("shiftlock") or n:find("shift_lock") or n:find("shift lock")
+                       or n == "shift" or n == "mouselock" or n == "lockbutton" then
+                        shiftlock_button_cache = d
+                        return d
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function press_button(btn)
+    -- try every common click channel so the game actually reacts
+    pcall(function() btn:Fire("Activated") end)
+    pcall(function() btn:Fire("MouseButton1Click") end)
+    pcall(function()
+        if firetouchinterest then
+            firetouchinterest(btn, Enum.UserInputType.Touch, 0)
+            task.wait(0.05)
+            firetouchinterest(btn, Enum.UserInputType.Touch, 1)
+        end
+    end)
+end
+
+-- 🎃 shortcut state 🎃
+local last_shiftlock_toggle = 0
+local shiftlock_ui_refresh = nil
+
+local function try_toggle_shiftlock()
+    if not cfg.RightClickShiftlock then return end
+    local now = tick()
+    if now - last_shiftlock_toggle < 0.25 then return end
+    last_shiftlock_toggle = now
+
+    local btn = find_shiftlock_button()
+    if btn then
+        press_button(btn)
+        cfg.ShiftlockEnabled = not cfg.ShiftlockEnabled
+        if shiftlock_ui_refresh then pcall(shiftlock_ui_refresh, cfg.ShiftlockEnabled) end
+        notify("🎃 shiftlock", cfg.ShiftlockEnabled and "on 🎃" or "off 💀", 1.5)
+        return
+    end
+
+    -- fallback: flip rotation type (works in games using Roblox's built-in)
+    local new_state = not cfg.ShiftlockEnabled
+    cfg.ShiftlockEnabled = new_state
+    pcall(function()
+        local svc = UserSettings():GetService("UserGameSettings")
+        svc.RotationType = new_state and Enum.RotationType.MovementRelative
+                                           or Enum.RotationType.CameraRelative
+    end)
+    if shiftlock_ui_refresh then pcall(shiftlock_ui_refresh, new_state) end
+    notify("🎃 shiftlock", new_state and "on 🎃" or "off 💀", 1.5)
+end
+
+local current_main_gui = nil
+local ui_main_frame = nil
+
+local function is_touch_on_ui(pos)
+    if not ui_main_frame or not ui_main_frame.Visible then return false end
+    if not current_main_gui or not current_main_gui.Enabled then return false end
+    local ap = ui_main_frame.AbsolutePosition
+    local as = ui_main_frame.AbsoluteSize
+    return pos.X >= ap.X and pos.X <= ap.X + as.X
+       and pos.Y >= ap.Y and pos.Y <= ap.Y + as.Y
+end
+
+do
+    local float_gui = Instance.new("ScreenGui")
+    float_gui.Name = "livyiiFloatBtn"
+    float_gui.ResetOnSpawn = false
+    float_gui.DisplayOrder = 2000
+    float_gui.IgnoreGuiInset = true
+    float_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    float_gui.Parent = PlayerGui
+
+    local toggle_btn = Instance.new("TextButton")
+    toggle_btn.Size = UDim2.new(0, 42, 0, 42)
+    toggle_btn.Position = UDim2.new(1, -54, 0, 60)
+    toggle_btn.BackgroundColor3 = CREAM
+    toggle_btn.BorderSizePixel = 0
+    toggle_btn.Text = "🎃"
+    toggle_btn.TextColor3 = DEEP_BROWN
+    toggle_btn.TextSize = 22
+    toggle_btn.Font = Enum.Font.GothamBold
+    toggle_btn.AutoButtonColor = false
+    toggle_btn.ZIndex = 5
+    toggle_btn.Parent = float_gui
+
+    local t_c = Instance.new("UICorner"); t_c.CornerRadius = UDim.new(1, 0); t_c.Parent = toggle_btn
+    local t_s = Instance.new("UIStroke"); t_s.Color = PINK; t_s.Thickness = 2; t_s.Parent = toggle_btn
+    local t_g = Instance.new("UIGradient")
+    t_g.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 140, 30)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 50, 130)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(45, 25, 65)),
+    })
+    t_g.Rotation = 45
+    t_g.Parent = toggle_btn
+
+    local drag = false
+    local ds, sp
+    toggle_btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            drag = true ds = input.Position sp = toggle_btn.Position
+        end
+    end)
+    toggle_btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then drag = false end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if drag and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - ds
+            toggle_btn.Position = UDim2.new(sp.X.Scale, sp.X.Offset + d.X, sp.Y.Scale, sp.Y.Offset + d.Y)
+        end
+    end)
+
+    toggle_btn.MouseButton1Click:Connect(function()
+        if current_main_gui then
+            current_main_gui.Enabled = not current_main_gui.Enabled
+        end
+    end)
+end
+
+local function show_platform_picker(callback)
+    local plat_gui = Instance.new("ScreenGui")
+    plat_gui.Name = "livyiiPlatformPicker"
+    plat_gui.ResetOnSpawn = false
+    plat_gui.DisplayOrder = 1500
+    plat_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    plat_gui.Parent = PlayerGui
+
+    local blur = Instance.new("BlurEffect")
+    blur.Size = 0
+    blur.Parent = Lighting
+    TweenService:Create(blur, TweenInfo.new(0.6, SMOOTH, DIR_OUT), {Size = 14}):Play()
+
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(30, 15, 45)
+    bg.BackgroundTransparency = 1
+    bg.BorderSizePixel = 0
+    bg.Parent = plat_gui
+    TweenService:Create(bg, TweenInfo.new(0.5, SMOOTH, DIR_OUT), {BackgroundTransparency = 0.4}):Play()
+
+    spawn_float_particles(bg, {"🎃", "👻", "🕷️", "🕸️", "🦇", "💀"}, 12)
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 260, 0, 185)
+    frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BackgroundColor3 = CREAM
+    frame.BorderSizePixel = 0
+    frame.ClipsDescendants = true
+    frame.ZIndex = 2
+    frame.Parent = plat_gui
+
+    local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0, 22); cc.Parent = frame
+    local cs = Instance.new("UIStroke"); cs.Color = PINK; cs.Thickness = 2.2; cs.Parent = frame
+    local cg = Instance.new("UIGradient")
+    cg.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(70, 35, 100)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(45, 25, 70)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(95, 50, 135)),
+    })
+    cg.Rotation = 45
+    cg.Parent = frame
+
+    local t = Instance.new("TextLabel")
+    t.Size = UDim2.new(1, 0, 0, 34); t.Position = UDim2.new(0, 0, 0, 16)
+    t.BackgroundTransparency = 1; t.Text = "choose your fate"
+    t.TextColor3 = DEEP_BROWN; t.TextSize = 16; t.Font = Enum.Font.GothamBold
+    t.ZIndex = 3
+    t.Parent = frame
+
+    local d = Instance.new("TextLabel")
+    d.Size = UDim2.new(1, -16, 0, 16); d.Position = UDim2.new(0, 8, 0, 50)
+    d.BackgroundTransparency = 1; d.Text = "spooky things await you 🦇"
+    d.TextColor3 = MUTED_TEXT; d.TextSize = 10; d.Font = Enum.Font.GothamMedium
+    d.ZIndex = 3
+    d.Parent = frame
+
+    local function make_card(text, icon, x_pos, platform, theme_color)
+        local card = Instance.new("TextButton")
+        card.Size = UDim2.new(0.4, 0, 0, 84)
+        card.Position = UDim2.new(x_pos, 0, 0, 82)
+        card.BackgroundColor3 = CARD_SOFT
+        card.BorderSizePixel = 0
+        card.Text = ""
+        card.AutoButtonColor = false
+        card.ZIndex = 10
+        card.Parent = frame
+
+        local c = Instance.new("UICorner"); c.CornerRadius = UDim.new(0, 14); c.Parent = card
+        local s = Instance.new("UIStroke"); s.Color = theme_color; s.Thickness = 1.8; s.Parent = card
+        local g = Instance.new("UIGradient")
+        g.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, CARD_SOFT),
+            ColorSequenceKeypoint.new(1, theme_color),
+        })
+        g.Rotation = 45
+        g.Parent = card
+
+        local il = Instance.new("TextLabel")
+        il.Size = UDim2.new(1, 0, 0, 38); il.Position = UDim2.new(0, 0, 0, 10)
+        il.BackgroundTransparency = 1; il.Text = icon; il.TextSize = 28
+        il.Font = Enum.Font.GothamBold; il.ZIndex = 11; il.Parent = card
+
+        local tx = Instance.new("TextLabel")
+        tx.Size = UDim2.new(1, 0, 0, 20); tx.Position = UDim2.new(0, 0, 0, 54)
+        tx.BackgroundTransparency = 1; tx.Text = text
+        tx.TextColor3 = DEEP_BROWN; tx.TextSize = 12; tx.Font = Enum.Font.GothamBold
+        tx.ZIndex = 11
+        tx.Parent = card
+
+        card.MouseButton1Click:Connect(function()
+            local out = TweenService:Create(frame, TweenInfo.new(0.4, SMOOTH, DIR_IN), {Size = UDim2.new(0, 0, 0, 0)})
+            out:Play()
+            TweenService:Create(bg, TweenInfo.new(0.4, SMOOTH, DIR_IN), {BackgroundTransparency = 1}):Play()
+            TweenService:Create(blur, TweenInfo.new(0.4, SMOOTH, DIR_IN), {Size = 0}):Play()
+            out.Completed:Connect(function()
+                pcall(function() blur:Destroy() end)
+                plat_gui:Destroy()
+                if callback then callback(platform) end
+            end)
+        end)
+    end
+
+    make_card("pc", "💻", 0.06, "pc", SOFT_PINK)
+    make_card("mobile", "📱", 0.54, "mobile", YELLOW)
+end
+
+local function show_intro(platform, callback)
+    local intro_gui = Instance.new("ScreenGui")
+    intro_gui.Name = "livyiiIntro"
+    intro_gui.ResetOnSpawn = false
+    intro_gui.DisplayOrder = 1600
+    intro_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    intro_gui.Parent = PlayerGui
+
+    local bg = Instance.new("Frame")
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.fromRGB(25, 12, 40)
+    bg.BackgroundTransparency = 1
+    bg.BorderSizePixel = 0
+    bg.ZIndex = 1
+    bg.Parent = intro_gui
+    TweenService:Create(bg, TweenInfo.new(0.5, SMOOTH, DIR_OUT), {BackgroundTransparency = 0.3}):Play()
+
+    spawn_float_particles(bg, {"🎃", "👻", "🕷️", "🕸️", "🦇", "💀", "🌙"}, 18)
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 48); title.Position = UDim2.new(0, 0, 0.4, -8)
+    title.BackgroundTransparency = 1; title.Text = "🎃 livyii.silent 🎃"
+    title.TextColor3 = DEEP_BROWN; title.TextSize = 26; title.Font = Enum.Font.GothamBold
+    title.ZIndex = 5
+    title.Parent = intro_gui
+
+    local loading = Instance.new("TextLabel")
+    loading.Size = UDim2.new(1, 0, 0, 32); loading.Position = UDim2.new(0, 0, 0.55, -16)
+    loading.BackgroundTransparency = 1; loading.Text = "summoning.."
+    loading.TextColor3 = PINK; loading.TextSize = 16; loading.Font = Enum.Font.GothamBold
+    loading.ZIndex = 5
+    loading.Parent = intro_gui
+
+    local heart = Instance.new("TextLabel")
+    heart.Size = UDim2.new(0, 24, 0, 24); heart.Position = UDim2.new(0.5, 58, 0.55, -16)
+    heart.BackgroundTransparency = 1; heart.Text = "👻"; heart.TextSize = 16
+    heart.Font = Enum.Font.GothamBold; heart.ZIndex = 5; heart.Parent = intro_gui
+
+    title.TextTransparency = 1; loading.TextTransparency = 1
+    TweenService:Create(title, TweenInfo.new(0.7, SMOOTH, DIR_OUT), {TextTransparency = 0, Position = UDim2.new(0, 0, 0.4, -24)}):Play()
+    TweenService:Create(loading, TweenInfo.new(0.6, SMOOTH, DIR_OUT), {TextTransparency = 0}):Play()
+
+    task.wait(1.5)
+    loading.Text = "loaded! 🎃"
+    task.wait(1.5)
+
+    local fade = TweenService:Create(bg, TweenInfo.new(0.55, SMOOTH, DIR_IN), {BackgroundTransparency = 1})
+    fade:Play()
+    TweenService:Create(title, TweenInfo.new(0.55, SMOOTH, DIR_IN), {TextTransparency = 1}):Play()
+    TweenService:Create(loading, TweenInfo.new(0.55, SMOOTH, DIR_IN), {TextTransparency = 1}):Play()
+    TweenService:Create(heart, TweenInfo.new(0.55, SMOOTH, DIR_IN), {TextTransparency = 1}):Play()
+    fade.Completed:Connect(function()
+        clear_blurs()
+        intro_gui:Destroy()
+        callback(platform)
+    end)
+end
+
+local function load_main_ui(platform)
+    clear_blurs()
+
+    local FRAME_W = 240
+    local FRAME_H = 340
+    local CARD_H = 34
+    local TOGGLE_W = 38
+    local TOGGLE_H = 20
+    local LABEL_SIZE = 9
+    local SLIDER_H = 42
+    local SLIDER_KNOB = 13
+
+    local main_gui = Instance.new("ScreenGui")
+    main_gui.Name = "livyiiMainGui"
+    main_gui.ResetOnSpawn = false
+    main_gui.DisplayOrder = 900
+    main_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    main_gui.Parent = PlayerGui
+    current_main_gui = main_gui
+
+    local main = Instance.new("Frame")
+    main.Size = UDim2.new(0, FRAME_W, 0, FRAME_H)
+    main.Position = UDim2.new(0.5, -FRAME_W/2, 0.5, -FRAME_H/2)
+    main.BackgroundColor3 = BG_COLOR
+    main.BorderSizePixel = 0
+    main.ClipsDescendants = false
+    main.Active = true
+    main.Visible = true
+    main.ZIndex = 1
+    main.Parent = main_gui
+    ui_main_frame = main
+
+    local mc = Instance.new("UICorner"); mc.CornerRadius = UDim.new(0, 18); mc.Parent = main
+    local ms = Instance.new("UIStroke"); ms.Color = CARAMEL; ms.Thickness = 1.8; ms.Parent = main
+    local mg = Instance.new("UIGradient")
+    mg.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 30, 90)),
+        ColorSequenceKeypoint.new(0.35, Color3.fromRGB(40, 20, 60)),
+        ColorSequenceKeypoint.new(0.7, Color3.fromRGB(48, 28, 72)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 40, 120)),
+    })
+    mg.Rotation = 45
+    mg.Parent = main
+
+    local header = Instance.new("Frame")
+    header.Size = UDim2.new(1, 0, 0, 48)
+    header.BackgroundTransparency = 1
+    header.ZIndex = 20
+    header.Parent = main
+
+    local badge = Instance.new("Frame")
+    badge.Size = UDim2.new(0, 28, 0, 28)
+    badge.Position = UDim2.new(0, 10, 0.5, -14)
+    badge.BackgroundColor3 = YELLOW
+    badge.BorderSizePixel = 0
+    badge.ZIndex = 21
+    badge.Parent = header
+
+    local bc = Instance.new("UICorner"); bc.CornerRadius = UDim.new(1, 0); bc.Parent = badge
+    local bs = Instance.new("UIStroke"); bs.Color = PINK; bs.Thickness = 1.5; bs.Parent = badge
+
+    local bi = Instance.new("TextLabel")
+    bi.Size = UDim2.new(1, 0, 1, 0); bi.BackgroundTransparency = 1
+    bi.Text = "🎃"; bi.TextSize = 14; bi.Font = Enum.Font.GothamBold
+    bi.ZIndex = 22
+    bi.Parent = badge
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -110, 0, 16)
+    title.Position = UDim2.new(0, 44, 0, 9)
+    title.BackgroundTransparency = 1
+    title.Text = "livyii.silent"
+    title.TextColor3 = DEEP_BROWN
+    title.TextSize = 13
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 21
+    title.Parent = header
+
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(1, -110, 0, 12)
+    subtitle.Position = UDim2.new(0, 44, 0, 26)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "cursed for " .. platform .. " 🦇"
+    subtitle.TextColor3 = MUTED_TEXT
+    subtitle.TextSize = 9
+    subtitle.Font = Enum.Font.GothamMedium
+    subtitle.TextXAlignment = Enum.TextXAlignment.Left
+    subtitle.ZIndex = 21
+    subtitle.Parent = header
+
+    local min_btn = Instance.new("TextButton")
+    min_btn.Size = UDim2.new(0, 22, 0, 22)
+    min_btn.Position = UDim2.new(1, -28, 0.5, -11)
+    min_btn.BackgroundColor3 = YELLOW
+    min_btn.BorderSizePixel = 0
+    min_btn.Text = "−"
+    min_btn.TextColor3 = BROWN
+    min_btn.TextSize = 13
+    min_btn.Font = Enum.Font.GothamBold
+    min_btn.AutoButtonColor = false
+    min_btn.ZIndex = 25
+    min_btn.Parent = header
+
+    local mbc = Instance.new("UICorner"); mbc.CornerRadius = UDim.new(1, 0); mbc.Parent = min_btn
+    local mbs = Instance.new("UIStroke"); mbs.Color = PINK; mbs.Thickness = 1.3; mbs.Parent = min_btn
+
+    local tab_bar = Instance.new("Frame")
+    tab_bar.Size = UDim2.new(1, -18, 0, 30)
+    tab_bar.Position = UDim2.new(0, 9, 0, 52)
+    tab_bar.BackgroundColor3 = Color3.fromRGB(38, 20, 58)
+    tab_bar.BackgroundTransparency = 0.1
+    tab_bar.BorderSizePixel = 0
+    tab_bar.ZIndex = 15
+    tab_bar.Parent = main
+
+    local tbc = Instance.new("UICorner"); tbc.CornerRadius = UDim.new(1, 0); tbc.Parent = tab_bar
+    local tbs = Instance.new("UIStroke"); tbs.Color = CARAMEL; tbs.Thickness = 1; tbs.Transparency = 0.4; tbs.Parent = tab_bar
+
+    local tab_indicator = Instance.new("Frame")
+    tab_indicator.Size = UDim2.new(0.25, -6, 1, -6)
+    tab_indicator.Position = UDim2.new(0, 3, 0, 3)
+    tab_indicator.BackgroundColor3 = YELLOW
+    tab_indicator.BorderSizePixel = 0
+    tab_indicator.ZIndex = 16
+    tab_indicator.Parent = tab_bar
+
+    local tic = Instance.new("UICorner"); tic.CornerRadius = UDim.new(1, 0); tic.Parent = tab_indicator
+    local tis = Instance.new("UIStroke"); tis.Color = PINK; tis.Thickness = 1.3; tis.Parent = tab_indicator
+
+    local tab_names = {"AIM", "COMBAT", "VISUAL", "MISC"}
+    local tab_btns = {}
+    local current_tab = 1
+
+    for i = 1, 4 do
+        local tb = Instance.new("TextButton")
+        tb.Size = UDim2.new(0.25, 0, 1, 0)
+        tb.Position = UDim2.new((i-1) * 0.25, 0, 0, 0)
+        tb.BackgroundTransparency = 1
+        tb.Text = tab_names[i]
+        tb.TextColor3 = i == 1 and YELLOW or MUTED_TEXT
+        tb.TextSize = 9
+        tb.Font = Enum.Font.GothamBold
+        tb.AutoButtonColor = false
+        tb.ZIndex = 18
+        tb.Parent = tab_bar
+        table.insert(tab_btns, tb)
+    end
+
+    local scroll_frames = {}
+    for i = 1, 4 do
+        local sf = Instance.new("ScrollingFrame")
+        sf.Name = "Tab" .. i
+        sf.Size = UDim2.new(1, -18, 1, -88)
+        sf.Position = UDim2.new(0, 9, 0, 88)
+        sf.BackgroundTransparency = 1
+        sf.BorderSizePixel = 0
+        sf.CanvasSize = UDim2.new(0, 0, 0, 3000)
+        sf.ScrollBarThickness = 3
+        sf.ScrollBarImageColor3 = PINK
+        sf.ScrollingEnabled = true
+        sf.Visible = (i == 1)
+        sf.ZIndex = 3
+        sf.Parent = main
+
+        local lyt = Instance.new("UIListLayout")
+        lyt.Padding = UDim.new(0, 5)
+        lyt.SortOrder = Enum.SortOrder.LayoutOrder
+        lyt.Parent = sf
+
+        local pad = Instance.new("UIPadding")
+        pad.PaddingTop = UDim.new(0, 4)
+        pad.PaddingBottom = UDim.new(0, 16)
+        pad.Parent = sf
+
+        scroll_frames[i] = sf
+    end
+
+    local function make_section(parent, emoji, text)
+        local sec = Instance.new("Frame")
+        sec.Size = UDim2.new(1, 0, 0, 20)
+        sec.BackgroundTransparency = 1
+        sec.ZIndex = 4
+        sec.Parent = parent
+
+        local b = Instance.new("Frame")
+        b.Size = UDim2.new(0, 15, 0, 15)
+        b.Position = UDim2.new(0, 0, 0.5, -7)
+        b.BackgroundColor3 = SOFT_PINK
+        b.BorderSizePixel = 0
+        b.ZIndex = 5
+        b.Parent = sec
+
+        local bcor = Instance.new("UICorner"); bcor.CornerRadius = UDim.new(1, 0); bcor.Parent = b
+        local bstr = Instance.new("UIStroke"); bstr.Color = PINK; bstr.Thickness = 1; bstr.Parent = b
+
+        local el = Instance.new("TextLabel")
+        el.Size = UDim2.new(1, 0, 1, 0); el.BackgroundTransparency = 1
+        el.Text = emoji; el.TextSize = 9; el.Font = Enum.Font.GothamBold
+        el.ZIndex = 6
+        el.Parent = b
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, -24, 1, 0)
+        lbl.Position = UDim2.new(0, 22, 0, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = text
+        lbl.TextColor3 = DEEP_BROWN
+        lbl.TextSize = 9
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.ZIndex = 5
+        lbl.Parent = sec
+
+        local line = Instance.new("Frame")
+        line.Size = UDim2.new(1, 0, 0, 1)
+        line.Position = UDim2.new(0, 0, 1, -1)
+        line.BackgroundColor3 = PINK
+        line.BackgroundTransparency = 0.5
+        line.BorderSizePixel = 0
+        line.ZIndex = 5
+        line.Parent = sec
+    end
+
+    local function make_toggle(parent, icon, text, get_state, set_state)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, CARD_H)
+        card.BackgroundColor3 = CARD_SOFT
+        card.BackgroundTransparency = 0.05
+        card.BorderSizePixel = 0
+        card.ZIndex = 5
+        card.Parent = parent
+
+        local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0, 11); cc.Parent = card
+        local cs = Instance.new("UIStroke"); cs.Color = BORDER_SOFT; cs.Thickness = 1; cs.Parent = card
+
+        local ib = Instance.new("Frame")
+        ib.Size = UDim2.new(0, 22, 0, 22)
+        ib.Position = UDim2.new(0, 6, 0.5, -11)
+        ib.BackgroundColor3 = SOFT_PINK
+        ib.BorderSizePixel = 0
+        ib.ZIndex = 6
+        ib.Parent = card
+
+        local ibc = Instance.new("UICorner"); ibc.CornerRadius = UDim.new(1, 0); ibc.Parent = ib
+        local ibs = Instance.new("UIStroke"); ibs.Color = PINK; ibs.Thickness = 1; ibs.Transparency = 0.5; ibs.Parent = ib
+
+        local ibi = Instance.new("TextLabel")
+        ibi.Size = UDim2.new(1, 0, 1, 0); ibi.BackgroundTransparency = 1
+        ibi.Text = icon; ibi.TextSize = 11; ibi.Font = Enum.Font.GothamBold
+        ibi.ZIndex = 7
+        ibi.Parent = ib
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -90, 1, 0)
+        label.Position = UDim2.new(0, 34, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = DEEP_BROWN
+        label.TextSize = LABEL_SIZE
+        label.Font = Enum.Font.GothamMedium
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.ZIndex = 6
+        label.Parent = card
+
+        local pill = Instance.new("TextButton")
+        pill.Size = UDim2.new(0, TOGGLE_W, 0, TOGGLE_H)
+        pill.Position = UDim2.new(1, -TOGGLE_W-8, 0.5, -TOGGLE_H/2)
+        pill.BackgroundColor3 = get_state() and YELLOW or Color3.fromRGB(70, 45, 100)
+        pill.BorderSizePixel = 0
+        pill.Text = ""
+        pill.AutoButtonColor = false
+        pill.ZIndex = 10
+        pill.Parent = card
+
+        local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(1, 0); pc.Parent = pill
+        local ps = Instance.new("UIStroke"); ps.Color = get_state() and PINK or Color3.fromRGB(95, 65, 130); ps.Thickness = 1.3; ps.Parent = pill
+
+        local knob = Instance.new("Frame")
+        knob.Size = UDim2.new(0, TOGGLE_H - 6, 0, TOGGLE_H - 6)
+        knob.Position = get_state() and UDim2.new(1, -(TOGGLE_H - 6) - 3, 0.5, -(TOGGLE_H - 6)/2) or UDim2.new(0, 3, 0.5, -(TOGGLE_H - 6)/2)
+        knob.BackgroundColor3 = WHITE
+        knob.BorderSizePixel = 0
+        knob.ZIndex = 11
+        knob.Parent = pill
+
+        local kc = Instance.new("UICorner"); kc.CornerRadius = UDim.new(1, 0); kc.Parent = knob
+        local ks = Instance.new("UIStroke"); ks.Color = PINK; ks.Thickness = 1; ks.Parent = knob
+
+        local function apply_visual(state)
+            TweenService:Create(pill, TweenInfo.new(0.4, SMOOTH, DIR_OUT), {
+                BackgroundColor3 = state and YELLOW or Color3.fromRGB(70, 45, 100)
+            }):Play()
+            TweenService:Create(ps, TweenInfo.new(0.4, SMOOTH, DIR_OUT), {
+                Color = state and PINK or Color3.fromRGB(95, 65, 130)
+            }):Play()
+            TweenService:Create(knob, TweenInfo.new(0.4, SMOOTH, DIR_OUT), {
+                Position = state and UDim2.new(1, -(TOGGLE_H - 6) - 3, 0.5, -(TOGGLE_H - 6)/2) or UDim2.new(0, 3, 0.5, -(TOGGLE_H - 6)/2)
+            }):Play()
+        end
+
+        pill.MouseButton1Click:Connect(function()
+            local ns = not get_state()
+            set_state(ns)
+            apply_visual(ns)
+        end)
+
+        return apply_visual
+    end
+
+    local function make_slider(parent, icon, text, min, max, get_value, set_value)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, SLIDER_H)
+        card.BackgroundColor3 = CARD_SOFT
+        card.BackgroundTransparency = 0.05
+        card.BorderSizePixel = 0
+        card.ZIndex = 5
+        card.Parent = parent
+
+        local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0, 11); cc.Parent = card
+        local cs = Instance.new("UIStroke"); cs.Color = BORDER_SOFT; cs.Thickness = 1; cs.Parent = card
+
+        local ib = Instance.new("Frame")
+        ib.Size = UDim2.new(0, 22, 0, 22)
+        ib.Position = UDim2.new(0, 6, 0, 5)
+        ib.BackgroundColor3 = SOFT_PINK
+        ib.BorderSizePixel = 0
+        ib.ZIndex = 6
+        ib.Parent = card
+
+        local ibc = Instance.new("UICorner"); ibc.CornerRadius = UDim.new(1, 0); ibc.Parent = ib
+        local ibs = Instance.new("UIStroke"); ibs.Color = PINK; ibs.Thickness = 1; ibs.Transparency = 0.5; ibs.Parent = ib
+
+        local ibi = Instance.new("TextLabel")
+        ibi.Size = UDim2.new(1, 0, 1, 0); ibi.BackgroundTransparency = 1
+        ibi.Text = icon; ibi.TextSize = 11; ibi.Font = Enum.Font.GothamBold
+        ibi.ZIndex = 7
+        ibi.Parent = ib
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -90, 0, 16)
+        label.Position = UDim2.new(0, 34, 0, 6)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = DEEP_BROWN
+        label.TextSize = LABEL_SIZE
+        label.Font = Enum.Font.GothamMedium
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.ZIndex = 6
+        label.Parent = card
+
+        local badge = Instance.new("Frame")
+        badge.Size = UDim2.new(0, 40, 0, 18)
+        badge.Position = UDim2.new(1, -46, 0, 6)
+        badge.BackgroundColor3 = YELLOW
+        badge.BorderSizePixel = 0
+        badge.ZIndex = 6
+        badge.Parent = card
+
+        local bdc = Instance.new("UICorner"); bdc.CornerRadius = UDim.new(1, 0); bdc.Parent = badge
+        local bds = Instance.new("UIStroke"); bds.Color = PINK; bds.Thickness = 1; bds.Parent = badge
+
+        local val_lbl = Instance.new("TextLabel")
+        val_lbl.Size = UDim2.new(1, 0, 1, 0); val_lbl.BackgroundTransparency = 1
+        val_lbl.Text = tostring(get_value())
+        val_lbl.TextColor3 = BROWN
+        val_lbl.TextSize = 9
+        val_lbl.Font = Enum.Font.GothamBold
+        val_lbl.ZIndex = 7
+        val_lbl.Parent = badge
+
+        local track = Instance.new("Frame")
+        track.Size = UDim2.new(1, -52, 0, 5)
+        track.Position = UDim2.new(0, 34, 0, SLIDER_H - 13)
+        track.BackgroundColor3 = Color3.fromRGB(60, 35, 85)
+        track.BorderSizePixel = 0
+        track.ZIndex = 6
+        track.Parent = card
+
+        local tcc = Instance.new("UICorner"); tcc.CornerRadius = UDim.new(1, 0); tcc.Parent = track
+
+        local fill = Instance.new("Frame")
+        fill.Size = UDim2.new((get_value() - min) / (max - min), 0, 1, 0)
+        fill.BackgroundColor3 = YELLOW
+        fill.BorderSizePixel = 0
+        fill.ZIndex = 7
+        fill.Parent = track
+
+        local fc = Instance.new("UICorner"); fc.CornerRadius = UDim.new(1, 0); fc.Parent = fill
+
+        local knob = Instance.new("TextButton")
+        knob.Size = UDim2.new(0, SLIDER_KNOB, 0, SLIDER_KNOB)
+        knob.Position = UDim2.new((get_value() - min) / (max - min), -SLIDER_KNOB/2, 0.5, -SLIDER_KNOB/2)
+        knob.BackgroundColor3 = WHITE
+        knob.BorderSizePixel = 0
+        knob.Text = ""
+        knob.AutoButtonColor = false
+        knob.ZIndex = 10
+        knob.Parent = track
+
+        local kc = Instance.new("UICorner"); kc.CornerRadius = UDim.new(1, 0); kc.Parent = knob
+        local ks = Instance.new("UIStroke"); ks.Color = PINK; ks.Thickness = 1.5; ks.Parent = knob
+
+        local dragging = false
+        local function update_from_x(x_pos)
+            local pct = math.clamp((x_pos - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+            local val
+            if max <= 1 then val = math.floor((min + (max - min) * pct) * 100) / 100
+            else val = math.floor(min + (max - min) * pct) end
+            set_value(val)
+            val_lbl.Text = tostring(val)
+            fill.Size = UDim2.new(pct, 0, 1, 0)
+            knob.Position = UDim2.new(pct, -SLIDER_KNOB/2, 0.5, -SLIDER_KNOB/2)
+        end
+
+        knob.MouseButton1Down:Connect(function() dragging = true end)
+        UIS.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+        UIS.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                update_from_x(input.Position.X)
+            end
+        end)
+        track.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                update_from_x(input.Position.X)
+            end
+        end)
+    end
+
+    local function make_dropdown(parent, icon, text, options, get_value, set_value)
+        local card = Instance.new("Frame")
+        card.Size = UDim2.new(1, 0, 0, CARD_H)
+        card.BackgroundColor3 = CARD_SOFT
+        card.BackgroundTransparency = 0.05
+        card.BorderSizePixel = 0
+        card.ZIndex = 5
+        card.Parent = parent
+
+        local cc = Instance.new("UICorner"); cc.CornerRadius = UDim.new(0, 11); cc.Parent = card
+        local cs = Instance.new("UIStroke"); cs.Color = BORDER_SOFT; cs.Thickness = 1; cs.Parent = card
+
+        local ib = Instance.new("Frame")
+        ib.Size = UDim2.new(0, 22, 0, 22)
+        ib.Position = UDim2.new(0, 6, 0.5, -11)
+        ib.BackgroundColor3 = SOFT_PINK
+        ib.BorderSizePixel = 0
+        ib.ZIndex = 6
+        ib.Parent = card
+
+        local ibc = Instance.new("UICorner"); ibc.CornerRadius = UDim.new(1, 0); ibc.Parent = ib
+        local ibs = Instance.new("UIStroke"); ibs.Color = PINK; ibs.Thickness = 1; ibs.Transparency = 0.5; ibs.Parent = ib
+
+        local ibi = Instance.new("TextLabel")
+        ibi.Size = UDim2.new(1, 0, 1, 0); ibi.BackgroundTransparency = 1
+        ibi.Text = icon; ibi.TextSize = 11; ibi.Font = Enum.Font.GothamBold
+        ibi.ZIndex = 7
+        ibi.Parent = ib
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.45, 0, 1, 0)
+        label.Position = UDim2.new(0, 34, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = DEEP_BROWN
+        label.TextSize = LABEL_SIZE
+        label.Font = Enum.Font.GothamMedium
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.ZIndex = 6
+        label.Parent = card
+
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.4, 0, 0, CARD_H - 12)
+        btn.Position = UDim2.new(0.58, 0, 0.5, -(CARD_H - 12)/2)
+        btn.BackgroundColor3 = YELLOW
+        btn.BorderSizePixel = 0
+        btn.Text = tostring(get_value())
+        btn.TextColor3 = BROWN
+        btn.TextSize = 9
+        btn.Font = Enum.Font.GothamBold
+        btn.AutoButtonColor = false
+        btn.ZIndex = 10
+        btn.Parent = card
+
+        local bcor = Instance.new("UICorner"); bcor.CornerRadius = UDim.new(1, 0); bcor.Parent = btn
+        local bstr = Instance.new("UIStroke"); bstr.Color = PINK; bstr.Thickness = 1.1; bstr.Parent = btn
+
+        local container = Instance.new("Frame")
+        container.Size = UDim2.new(0.4, 0, 0, #options * 20)
+        container.Position = UDim2.new(0.58, 0, 0, CARD_H)
+        container.BackgroundColor3 = Color3.fromRGB(55, 32, 82)
+        container.BorderSizePixel = 0
+        container.Visible = false
+        container.ZIndex = 30
+        container.Parent = card
+
+        local ccor = Instance.new("UICorner"); ccor.CornerRadius = UDim.new(0, 8); ccor.Parent = container
+        local cstr = Instance.new("UIStroke"); cstr.Color = PINK; cstr.Thickness = 1.3; cstr.Parent = container
+        local list = Instance.new("UIListLayout"); list.Padding = UDim.new(0, 2); list.Parent = container
+
+        btn.MouseButton1Click:Connect(function()
+            container.Visible = not container.Visible
+        end)
+
+        for _, opt in ipairs(options) do
+            local ob = Instance.new("TextButton")
+            ob.Size = UDim2.new(1, 0, 0, 18)
+            ob.BackgroundColor3 = Color3.fromRGB(48, 28, 72)
+            ob.BorderSizePixel = 0
+            ob.Text = tostring(opt)
+            ob.TextColor3 = DEEP_BROWN
+            ob.TextSize = 9
+            ob.Font = Enum.Font.GothamMedium
+            ob.AutoButtonColor = false
+            ob.ZIndex = 31
+            ob.Parent = container
+            ob.MouseButton1Click:Connect(function()
+                btn.Text = tostring(opt)
+                container.Visible = false
+                set_value(opt)
+            end)
+        end
+    end
+
+    local function make_player_tile(parent, player)
+        local tile = Instance.new("TextButton")
+        tile.Size = UDim2.new(1, 0, 0, 32)
+        tile.BackgroundColor3 = CARD_SOFT
+        tile.BackgroundTransparency = 0.05
+        tile.BorderSizePixel = 0
+        tile.Text = ""
+        tile.AutoButtonColor = false
+        tile.ZIndex = 5
+        tile.Parent = parent
+
+        local tc = Instance.new("UICorner"); tc.CornerRadius = UDim.new(0, 10); tc.Parent = tile
+        local ts = Instance.new("UIStroke"); ts.Color = BORDER_SOFT; ts.Thickness = 1; ts.Parent = tile
+
+        local avatar = Instance.new("ImageLabel")
+        avatar.Size = UDim2.new(0, 22, 0, 22)
+        avatar.Position = UDim2.new(0, 5, 0.5, -11)
+        avatar.BackgroundColor3 = SOFT_PINK
+        avatar.BorderSizePixel = 0
+        avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. player.UserId .. "&w=48&h=48"
+        avatar.ZIndex = 6
+        avatar.Parent = tile
+
+        local ac = Instance.new("UICorner"); ac.CornerRadius = UDim.new(1, 0); ac.Parent = avatar
+
+        local name_lbl = Instance.new("TextLabel")
+        name_lbl.Size = UDim2.new(1, -90, 0, 12)
+        name_lbl.Position = UDim2.new(0, 33, 0, 5)
+        name_lbl.BackgroundTransparency = 1
+        name_lbl.Text = player.Name
+        name_lbl.TextColor3 = DEEP_BROWN
+        name_lbl.TextSize = 9
+        name_lbl.Font = Enum.Font.GothamBold
+        name_lbl.TextXAlignment = Enum.TextXAlignment.Left
+        name_lbl.TextTruncate = Enum.TextTruncate.AtEnd
+        name_lbl.ZIndex = 6
+        name_lbl.Parent = tile
+
+        local dn_lbl = Instance.new("TextLabel")
+        dn_lbl.Size = UDim2.new(1, -90, 0, 10)
+        dn_lbl.Position = UDim2.new(0, 33, 0, 17)
+        dn_lbl.BackgroundTransparency = 1
+        dn_lbl.Text = "@" .. player.DisplayName
+        dn_lbl.TextColor3 = MUTED_TEXT
+        dn_lbl.TextSize = 8
+        dn_lbl.Font = Enum.Font.GothamMedium
+        dn_lbl.TextXAlignment = Enum.TextXAlignment.Left
+        dn_lbl.TextTruncate = Enum.TextTruncate.AtEnd
+        dn_lbl.ZIndex = 6
+        dn_lbl.Parent = tile
+
+        local pill = Instance.new("TextButton")
+        pill.Size = UDim2.new(0, TOGGLE_W, 0, TOGGLE_H)
+        pill.Position = UDim2.new(1, -TOGGLE_W-8, 0.5, -TOGGLE_H/2)
+        pill.BorderSizePixel = 0
+        pill.Text = ""
+        pill.AutoButtonColor = false
+        pill.ZIndex = 10
+        pill.Parent = tile
+
+        local pc = Instance.new("UICorner"); pc.CornerRadius = UDim.new(1, 0); pc.Parent = pill
+        local ps = Instance.new("UIStroke"); ps.Color = Color3.fromRGB(95, 65, 130); ps.Thickness = 1.3; ps.Parent = pill
+
+        local knob = Instance.new("Frame")
+        knob.Size = UDim2.new(0, TOGGLE_H - 6, 0, TOGGLE_H - 6)
+        knob.BackgroundColor3 = WHITE
+        knob.BorderSizePixel = 0
+        knob.ZIndex = 11
+        knob.Parent = pill
+
+        local kc = Instance.new("UICorner"); kc.CornerRadius = UDim.new(1, 0); kc.Parent = knob
+        local ks = Instance.new("UIStroke"); ks.Color = PINK; ks.Thickness = 1; ks.Parent = knob
+
+        local function refresh_visuals()
+            local on = cfg.TargetedPlayers[player] == true
+            pill.BackgroundColor3 = on and YELLOW or Color3.fromRGB(70, 45, 100)
+            ps.Color = on and PINK or Color3.fromRGB(95, 65, 130)
+            knob.Position = on and UDim2.new(1, -(TOGGLE_H - 6) - 3, 0.5, -(TOGGLE_H - 6)/2) or UDim2.new(0, 3, 0.5, -(TOGGLE_H - 6)/2)
+            name_lbl.TextColor3 = on and YELLOW or DEEP_BROWN
+        end
+        refresh_visuals()
+
+        local function toggle_target()
+            local new_state = not (cfg.TargetedPlayers[player] == true)
+            if new_state then
+                cfg.TargetedPlayers[player] = true
+                notify("🎃 cursed " .. player.Name, 1.5)
+            else
+                cfg.TargetedPlayers[player] = nil
+                notify("💀 released " .. player.Name, 1.5)
+            end
+            local on = new_state
+            TweenService:Create(pill, TweenInfo.new(0.35, SMOOTH, DIR_OUT), {
+                BackgroundColor3 = on and YELLOW or Color3.fromRGB(70, 45, 100)
+            }):Play()
+            TweenService:Create(ps, TweenInfo.new(0.35, SMOOTH, DIR_OUT), {
+                Color = on and PINK or Color3.fromRGB(95, 65, 130)
+            }):Play()
+            TweenService:Create(knob, TweenInfo.new(0.35, SMOOTH, DIR_OUT), {
+                Position = on and UDim2.new(1, -(TOGGLE_H - 6) - 3, 0.5, -(TOGGLE_H - 6)/2) or UDim2.new(0, 3, 0.5, -(TOGGLE_H - 6)/2)
+            }):Play()
+            TweenService:Create(name_lbl, TweenInfo.new(0.35, SMOOTH, DIR_OUT), {
+                TextColor3 = on and YELLOW or DEEP_BROWN
+            }):Play()
+        end
+
+        tile.MouseButton1Click:Connect(toggle_target)
+        pill.MouseButton1Click:Connect(toggle_target)
+    end
+
+    local aim_scroll = scroll_frames[1]
+    make_section(aim_scroll, "🎯", "core aim")
+    make_toggle(aim_scroll, "🎯", "silent aim", function() return cfg.Enabled end, function(v) cfg.Enabled = v end)
+    make_toggle(aim_scroll, "⭕", "show fov circle", function() return cfg.FOVCircleEnabled end, function(v) cfg.FOVCircleEnabled = v end)
+    make_slider(aim_scroll, "📏", "fov size", 1, 500, function() return cfg.FOVRadius end, function(v) cfg.FOVRadius = v end)
+    make_section(aim_scroll, "🚀", "prediction")
+    make_toggle(aim_scroll, "🚀", "auto-prediction", function() return cfg.AutoPredictionEnabled end, function(v) cfg.AutoPredictionEnabled = v end)
+    make_slider(aim_scroll, "⚡", "prediction strength", 0, 1, function() return cfg.PredictionStrength end, function(v) cfg.PredictionStrength = v end)
+
+    local combat_scroll = scroll_frames[2]
+    make_section(combat_scroll, "⚔️", "combat settings")
+    make_toggle(combat_scroll, "🔫", "bypass revolver", function() return cfg.RevolverBypass end, function(v) cfg.RevolverBypass = v end)
+    make_toggle(combat_scroll, "🧱", "wall check", function() return cfg.WallCheck end, function(v) cfg.WallCheck = v end)
+    make_toggle(combat_scroll, "💀", "knocked check", function() return cfg.KnockCheck end, function(v) cfg.KnockCheck = v end)
+    make_dropdown(combat_scroll, "🎯", "hit part", {"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso"}, function() return cfg.HitPart end, function(v) cfg.HitPart = v end)
+
+    local visual_scroll = scroll_frames[3]
+    make_section(visual_scroll, "🎨", "visuals")
+    make_toggle(visual_scroll, "👤", "target highlight", function() return cfg.HighlightEnabled end, function(v) cfg.HighlightEnabled = v end)
+    make_toggle(visual_scroll, "📍", "tracer", function() return cfg.TracerEnabled end, function(v) cfg.TracerEnabled = v end)
+    make_toggle(visual_scroll, "🎯", "crosshair", function() return cfg.CrosshairEnabled end, function(v) cfg.CrosshairEnabled = v end)
+    make_toggle(visual_scroll, "🔄", "crosshair rotation", function() return cfg.CrosshairRotationEnabled end, function(v) cfg.CrosshairRotationEnabled = v end)
+    make_toggle(visual_scroll, "ℹ️", "target info", function() return cfg.TargetInfoEnabled end, function(v) cfg.TargetInfoEnabled = v end)
+    make_section(visual_scroll, "🌈", "colors")
+    make_slider(visual_scroll, "🎯", "crosshair hue", 0, 360, function() return math.floor(cfg.CrosshairHue or 0) end, function(v) cfg.CrosshairHue = v end)
+    make_slider(visual_scroll, "📍", "tracer hue", 0, 360, function() return math.floor(cfg.TracerHue or 0) end, function(v) cfg.TracerHue = v end)
+    make_slider(visual_scroll, "⭕", "fov hue", 0, 360, function() return math.floor(cfg.FOVHue or 0) end, function(v) cfg.FOVHue = v end)
+
+    local misc_scroll = scroll_frames[4]
+    make_section(misc_scroll, "✨", "misc")
+    make_toggle(misc_scroll, "🖱️", "use cursor aim", function() return cfg.UseCursorAim end, function(v) cfg.UseCursorAim = v end)
+
+    -- 🎃 shiftlock toggle — presses the game's own shiftlock button 🎃
+    shiftlock_ui_refresh = make_toggle(misc_scroll, "🔒", "shiftlock",
+        function() return cfg.ShiftlockEnabled end,
+        function(v)
+            cfg.ShiftlockEnabled = v
+            local btn = find_shiftlock_button()
+            if btn then
+                press_button(btn)
+            else
+                pcall(function()
+                    local svc = UserSettings():GetService("UserGameSettings")
+                    svc.RotationType = v and Enum.RotationType.MovementRelative
+                                         or Enum.RotationType.CameraRelative
+                end)
+            end
+        end
+    )
+
+    make_toggle(misc_scroll, "🖱️", "rc/2-finger shiftlock",
+        function() return cfg.RightClickShiftlock end,
+        function(v) cfg.RightClickShiftlock = v end
+    )
+
+    local sl_hint = Instance.new("TextLabel")
+    sl_hint.Size = UDim2.new(1, 0, 0, 22)
+    sl_hint.BackgroundTransparency = 1
+    sl_hint.Text = "right-click (pc) · 2-finger tap (mobile)\ntoggles the game's shiftlock 🕸️"
+    sl_hint.TextColor3 = MUTED_TEXT
+    sl_hint.TextSize = 9
+    sl_hint.Font = Enum.Font.GothamMedium
+    sl_hint.TextXAlignment = Enum.TextXAlignment.Left
+    sl_hint.TextYAlignment = Enum.TextYAlignment.Top
+    sl_hint.ZIndex = 5
+    sl_hint.Parent = misc_scroll
+
+    make_section(misc_scroll, "👥", "cursed souls")
+
+    local note = Instance.new("TextLabel")
+    note.Size = UDim2.new(1, 0, 0, 14)
+    note.BackgroundTransparency = 1
+    note.Text = "tap a soul to curse only them"
+    note.TextColor3 = MUTED_TEXT
+    note.TextSize = 9
+    note.Font = Enum.Font.GothamMedium
+    note.TextXAlignment = Enum.TextXAlignment.Left
+    note.ZIndex = 5
+    note.Parent = misc_scroll
+
+    local player_list = Instance.new("Frame")
+    player_list.Name = "PlayerList"
+    player_list.Size = UDim2.new(1, 0, 0, 0)
+    player_list.AutomaticSize = Enum.AutomaticSize.Y
+    player_list.BackgroundTransparency = 1
+    player_list.ZIndex = 5
+    player_list.Parent = misc_scroll
+
+    local pl_layout = Instance.new("UIListLayout")
+    pl_layout.Padding = UDim.new(0, 5)
+    pl_layout.SortOrder = Enum.SortOrder.LayoutOrder
+    pl_layout.Parent = player_list
+
+    local function full_rebuild()
+        for _, child in ipairs(player_list:GetChildren()) do
+            if child:IsA("TextButton") or child:IsA("TextLabel") then child:Destroy() end
+        end
+        local sorted = {}
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer then table.insert(sorted, plr) end
+        end
+        table.sort(sorted, function(a, b) return a.Name:lower() < b.Name:lower() end)
+        for _, plr in ipairs(sorted) do
+            make_player_tile(player_list, plr)
+        end
+        if #sorted == 0 then
+            local empty = Instance.new("TextLabel")
+            empty.Size = UDim2.new(1, 0, 0, 26)
+            empty.BackgroundTransparency = 1
+            empty.Text = "no other souls yet 🕸️"
+            empty.TextColor3 = MUTED_TEXT
+            empty.TextSize = 9
+            empty.Font = Enum.Font.GothamMedium
+            empty.ZIndex = 5
+            empty.Parent = player_list
+        end
+    end
+    full_rebuild()
+
+    Players.PlayerAdded:Connect(function()
+        task.wait(0.3)
+        full_rebuild()
+    end)
+    Players.PlayerRemoving:Connect(function(plr)
+        cfg.TargetedPlayers[plr] = nil
+        task.wait(0.1)
+        full_rebuild()
+    end)
+
+    local function switch_tab(index)
+        if current_tab == index then return end
+        scroll_frames[current_tab].Visible = false
+        scroll_frames[index].Visible = true
+        current_tab = index
+        local target_pos = UDim2.new((index - 1) * 0.25, 3, 0, 3)
+        TweenService:Create(tab_indicator, TweenInfo.new(0.4, SMOOTH, DIR_OUT), {Position = target_pos}):Play()
+        for i, btn in ipairs(tab_btns) do
+            local target_color = i == index and YELLOW or MUTED_TEXT
+            TweenService:Create(btn, TweenInfo.new(0.3, SOFT, DIR_OUT), {TextColor3 = target_color}):Play()
+        end
+    end
+
+    for i = 1, 4 do
+        tab_btns[i].MouseButton1Click:Connect(function() switch_tab(i) end)
+    end
+
+    local drag_main = false
+    local ds_main, sp_main
+    header.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            drag_main = true ds_main = input.Position sp_main = main.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then drag_main = false end
+            end)
+        end
+    end)
+    header.InputChanged:Connect(function(input)
+        if drag_main and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local d = input.Position - ds_main
+            main.Position = UDim2.new(sp_main.X.Scale, sp_main.X.Offset + d.X, sp_main.Y.Scale, sp_main.Y.Offset + d.Y)
+        end
+    end)
+
+    local min = false
+    min_btn.MouseButton1Click:Connect(function()
+        min = not min
+        if min then
+            for _, sf in pairs(scroll_frames) do sf.Visible = false end
+            tab_bar.Visible = false
+            main.Size = UDim2.new(0, FRAME_W, 0, 48)
+            min_btn.Text = "+"
+        else
+            tab_bar.Visible = true
+            scroll_frames[current_tab].Visible = true
+            main.Size = UDim2.new(0, FRAME_W, 0, FRAME_H)
+            min_btn.Text = "−"
+        end
+    end)
+
+    ui_flow_active = false
+    notify("🎃 livyii.silent", "summoned for " .. platform, 4)
+end
+
+local WEEKLY_KEYS = {
+    ["pompom"] = true, ["livyii"] = true, ["imjustlit"] = true,
+    ["bestscript"] = true, ["bloxycola"] = true, ["supernatural"] = true,
+}
+
+local function show_key_ui()
+    local key_gui = Instance.new("ScreenGui")
+    key_gui.Name = "livyiiKeySystem"
+    key_gui.ResetOnSpawn = false
+    key_gui.DisplayOrder = 1700
+    key_gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    key_gui.Parent = PlayerGui
+
+    local key_frame = Instance.new("Frame")
+    key_frame.Size = UDim2.new(0, 0, 0, 0)
+    key_frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    key_frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    key_frame.BackgroundColor3 = BG_COLOR
+    key_frame.BorderSizePixel = 0
+    key_frame.ClipsDescendants = true
+    key_frame.ZIndex = 2
+    key_frame.Parent = key_gui
+
+    local kc = Instance.new("UICorner"); kc.CornerRadius = UDim.new(0, 18); kc.Parent = key_frame
+    local ks = Instance.new("UIStroke"); ks.Color = PINK; ks.Thickness = 1.8; ks.Parent = key_frame
+    local kg = Instance.new("UIGradient")
+    kg.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 130, 30)),
+        ColorSequenceKeypoint.new(0.4, Color3.fromRGB(60, 30, 90)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(45, 25, 70)),
+    })
+    kg.Rotation = 45
+    kg.Parent = key_frame
+
+    local kt = Instance.new("TextLabel")
+    kt.Size = UDim2.new(1, 0, 0, 34); kt.Position = UDim2.new(0, 0, 0, 12)
+    kt.BackgroundTransparency = 1; kt.Text = "🕸️ livyii key 🕸️"
+    kt.TextColor3 = DEEP_BROWN; kt.TextSize = 15; kt.Font = Enum.Font.GothamBold
+    kt.ZIndex = 3
+    kt.Parent = key_frame
+
+    local ksub = Instance.new("TextLabel")
+    ksub.Size = UDim2.new(1, -16, 0, 14); ksub.Position = UDim2.new(0, 8, 0, 44)
+    ksub.BackgroundTransparency = 1; ksub.Text = "whisper to the dc server 🧡"
+    ksub.TextColor3 = MUTED_TEXT; ksub.TextSize = 9; ksub.Font = Enum.Font.GothamMedium
+    ksub.ZIndex = 3
+    ksub.Parent = key_frame
+
+    local kbox = Instance.new("TextBox")
+    kbox.Size = UDim2.new(0.8, 0, 0, 32); kbox.Position = UDim2.new(0.1, 0, 0, 68)
+    kbox.BackgroundColor3 = Color3.fromRGB(55, 32, 82); kbox.BorderSizePixel = 0
+    kbox.Text = ""; kbox.PlaceholderText = "incantation..."; kbox.TextColor3 = DEEP_BROWN
+    kbox.PlaceholderColor3 = MUTED_TEXT; kbox.TextSize = 11
+    kbox.Font = Enum.Font.GothamMedium; kbox.ClearTextOnFocus = false; kbox.ZIndex = 10; kbox.Parent = key_frame
+    local kbc = Instance.new("UICorner"); kbc.CornerRadius = UDim.new(0, 10); kbc.Parent = kbox
+    local kbs = Instance.new("UIStroke"); kbs.Color = PINK; kbs.Thickness = 1.3; kbs.Parent = kbox
+
+    local ksubmit = Instance.new("TextButton")
+    ksubmit.Size = UDim2.new(0.5, 0, 0, 32); ksubmit.Position = UDim2.new(0.25, 0, 0, 110)
+    ksubmit.BackgroundColor3 = YELLOW; ksubmit.BorderSizePixel = 0; ksubmit.Text = "unlock 🔮"
+    ksubmit.TextColor3 = BROWN; ksubmit.TextSize = 11; ksubmit.Font = Enum.Font.GothamBold
+    ksubmit.AutoButtonColor = false
+    ksubmit.ZIndex = 10
+    ksubmit.Parent = key_frame
+    local ksc = Instance.new("UICorner"); ksc.CornerRadius = UDim.new(0, 10); ksc.Parent = ksubmit
+    local kss = Instance.new("UIStroke"); kss.Color = PINK; kss.Thickness = 1.3; kss.Parent = ksubmit
+
+    local kstatus = Instance.new("TextLabel")
+    kstatus.Size = UDim2.new(1, -16, 0, 14); kstatus.Position = UDim2.new(0, 8, 0, 148)
+    kstatus.BackgroundTransparency = 1; kstatus.Text = ""
+    kstatus.TextColor3 = Color3.fromRGB(200, 50, 50); kstatus.TextSize = 9
+    kstatus.Font = Enum.Font.GothamBold; kstatus.TextTransparency = 1; kstatus.ZIndex = 3; kstatus.Parent = key_frame
+
+    TweenService:Create(key_frame, TweenInfo.new(0.6, SMOOTH, DIR_OUT), {
+        Size = UDim2.new(0, 220, 0, 190)
+    }):Play()
+
+    ksubmit.MouseButton1Click:Connect(function()
+        local entered = kbox.Text:lower():gsub("%s+", "")
+        if WEEKLY_KEYS[entered] then
+            kstatus.Text = "unlocked! 🎃"
+            kstatus.TextColor3 = Color3.fromRGB(150, 230, 100)
+            TweenService:Create(kstatus, TweenInfo.new(0.35, SOFT, DIR_OUT), {TextTransparency = 0}):Play()
+            task.wait(0.6)
+            key_gui:Destroy()
+            show_platform_picker(function(platform)
+                show_intro(platform, load_main_ui)
+            end)
+        else
+            kstatus.Text = "invalid spell 💔"
+            kstatus.TextColor3 = Color3.fromRGB(200, 50, 50)
+            TweenService:Create(kstatus, TweenInfo.new(0.35, SOFT, DIR_OUT), {TextTransparency = 0}):Play()
+            kbox.Text = ""
+        end
+    end)
+
+    kbox.FocusLost:Connect(function(enter_pressed)
+        if enter_pressed then ksubmit:Fire("MouseButton1Click") end
+    end)
+end
+
+if is_dev then
+    notify("🎃 livyii", "developer access granted 🕸️", 4)
+    show_platform_picker(function(platform)
+        show_intro(platform, load_main_ui)
+    end)
+else
+    show_key_ui()
+end
+
+task.spawn(function()
+    local ok, err = pcall(function()
+        local outline_lines = {}
+        local crosshair_lines = {}
+        for i = 1, 4 do
+            local line = Drawing.new("Line")
+            line.Thickness = cfg.CrosshairOutlineThickness
+            line.Color = Color3.fromRGB(20, 10, 30)
+            line.Transparency = 1
+            line.Visible = false
+            table.insert(outline_lines, line)
+        end
+        for i = 1, 4 do
+            local line = Drawing.new("Line")
+            line.Thickness = cfg.CrosshairThickness
+            line.Color = Color3.fromRGB(255, 130, 30)
+            line.Transparency = 1
+            line.Visible = false
+            table.insert(crosshair_lines, line)
+        end
+
+        local fov_circle = Drawing.new("Circle")
+        fov_circle.Thickness = cfg.FOVCircleThickness
+        fov_circle.NumSides = 60
+        fov_circle.Radius = cfg.FOVRadius
+        fov_circle.Filled = false
+        fov_circle.Color = PINK
+        fov_circle.Transparency = cfg.FOVCircleTransparency
+        fov_circle.Visible = false
+
+        local info_text = Drawing.new("Text")
+        info_text.Size = 14
+        info_text.Center = true
+        info_text.Outline = true
+        info_text.OutlineColor = Color3.new(0, 0, 0)
+        info_text.Color = Color3.fromRGB(255, 130, 30)
+        info_text.Font = 2
+        info_text.Visible = false
+
+        local highlight = Instance.new("Highlight")
+        highlight.FillColor = Color3.fromRGB(255, 130, 30)
+        highlight.OutlineColor = Color3.fromRGB(165, 90, 220)
+        highlight.FillTransparency = 0.6
+        highlight.OutlineTransparency = 0
+        highlight.Enabled = false
+        pcall(function() highlight.Parent = game:GetService("CoreGui") end)
+
+        local tracer = Drawing.new("Line")
+        tracer.Thickness = 1.5
+        tracer.Color = PINK
+        tracer.Transparency = 1
+        tracer.Visible = false
+
+        local rotation_angle = 0
+        local function rotate_vector(v, angle)
+            local c = math.cos(angle)
+            local s = math.sin(angle)
+            return Vector2.new(v.X * c - v.Y * s, v.X * s + v.Y * c)
+        end
+
+        local function is_knocked(char)
+            local be = char and char:FindFirstChild("BodyEffects")
+            if be then
+                local ko = be:FindFirstChild("K.O")
+                return ko and ko.Value
+            end
+            return false
+        end
+
+        local function is_holding_tool()
+            if not cfg.RequireTool then return true end
+            local char = LocalPlayer.Character
+            if not char then return false end
+            return char:FindFirstChildOfClass("Tool") ~= nil
+        end
+
+        local function is_visible(target_part)
+            if not cfg.WallCheck then return true end
+            local origin = cam.CFrame.Position
+            local dir = target_part.Position - origin
+            local params = RaycastParams.new()
+            params.FilterType = Enum.RaycastFilterType.Blacklist
+            params.FilterDescendantsInstances = {LocalPlayer.Character}
+            local result = workspace:Raycast(origin, dir, params)
+            if not result then return true end
+            return result.Instance:IsDescendantOf(target_part.Parent)
+        end
+
+        local function get_aim_position(part)
+            if cfg.AutoPredictionEnabled then
+                local vel = part.AssemblyLinearVelocity or part.Velocity or Vector3.new(0,0,0)
+                return part.Position + vel * cfg.PredictionStrength
+            end
+            return part.Position
+        end
+
+        local current_target_plr = nil
+
+        local function get_target()
+            if not cfg.Enabled then return nil end
+            if not is_holding_tool() then return nil end
+            local whitelist_active = has_active_whitelist()
+            local aim_pos = cfg.UseCursorAim and UIS:GetMouseLocation() or Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
+            local best_part, best_dist, best_plr = nil, cfg.FOVRadius, nil
+            for _, plr in ipairs(Players:GetPlayers()) do
+                if plr == LocalPlayer then continue end
+                if whitelist_active and not is_whitelisted(plr) then continue end
+                local char = plr.Character
+                if not char then continue end
+                if cfg.KnockCheck and is_knocked(char) then continue end
+                if cfg.TeamCheck and plr.Team == LocalPlayer.Team then continue end
+                local part = char:FindFirstChild(cfg.HitPart) or char:FindFirstChild("HumanoidRootPart")
+                if not part then continue end
+                if not is_visible(part) then continue end
+                local target_pos = get_aim_position(part)
+                local sp, on_screen = cam:WorldToViewportPoint(target_pos)
+                if not on_screen then continue end
+                local dist = (Vector2.new(sp.X, sp.Y) - aim_pos).Magnitude
+                if dist < best_dist then
+                    best_dist = dist
+                    best_part = part
+                    best_plr = plr
+                end
+            end
+            current_target_plr = best_plr
+            return best_part
+        end
+
+        local function get_crosshair_draw_position()
+            if cfg.FollowTarget then
+                local target = get_target()
+                if target then
+                    local sp, on_screen = cam:WorldToViewportPoint(get_aim_position(target))
+                    if on_screen then return Vector2.new(sp.X, sp.Y) end
+                end
+            end
+            return cfg.CrosshairPosition
+        end
+
+        local function update_crosshair()
+            if ui_flow_active or not cfg.CrosshairEnabled then
+                for _, l in ipairs(outline_lines) do l.Visible = false end
+                for _, l in ipairs(crosshair_lines) do l.Visible = false end
+                return
+            end
+            local pos = get_crosshair_draw_position()
+            local size = cfg.CrosshairSize
+            local gap = cfg.CrosshairGap
+            local tS = Vector2.new(0, -gap - size); local tE = Vector2.new(0, -gap)
+            local bS = Vector2.new(0, gap); local bE = Vector2.new(0, gap + size)
+            local lS = Vector2.new(-gap - size, 0); local lE = Vector2.new(-gap, 0)
+            local rS = Vector2.new(gap, 0); local rE = Vector2.new(gap + size, 0)
+            if cfg.CrosshairRotationEnabled then
+                tS = rotate_vector(tS, rotation_angle); tE = rotate_vector(tE, rotation_angle)
+                bS = rotate_vector(bS, rotation_angle); bE = rotate_vector(bE, rotation_angle)
+                lS = rotate_vector(lS, rotation_angle); lE = rotate_vector(lE, rotation_angle)
+                rS = rotate_vector(rS, rotation_angle); rE = rotate_vector(rE, rotation_angle)
+            end
+            local cross_color = Color3.fromHSV((cfg.CrosshairHue or 0) / 360, 1, 1)
+            if cfg.CrosshairOutlineEnabled then
+                outline_lines[1].From = pos + tS; outline_lines[1].To = pos + tE
+                outline_lines[2].From = pos + bS; outline_lines[2].To = pos + bE
+                outline_lines[3].From = pos + lS; outline_lines[3].To = pos + lE
+                outline_lines[4].From = pos + rS; outline_lines[4].To = pos + rE
+                for _, l in ipairs(outline_lines) do
+                    l.Color = Color3.fromRGB(20, 10, 30)
+                    l.Thickness = cfg.CrosshairOutlineThickness
+                    l.Visible = true
+                end
+            else
+                for _, l in ipairs(outline_lines) do l.Visible = false end
+            end
+            crosshair_lines[1].From = pos + tS; crosshair_lines[1].To = pos + tE
+            crosshair_lines[2].From = pos + bS; crosshair_lines[2].To = pos + bE
+            crosshair_lines[3].From = pos + lS; crosshair_lines[3].To = pos + lE
+            crosshair_lines[4].From = pos + rS; crosshair_lines[4].To = pos + rE
+            for _, l in ipairs(crosshair_lines) do
+                l.Color = cross_color
+                l.Thickness = cfg.CrosshairThickness
+                l.Visible = true
+            end
+        end
+
+        RunService.RenderStepped:Connect(function(dt)
+            if ui_flow_active then
+                fov_circle.Visible = false
+                tracer.Visible = false
+                info_text.Visible = false
+                highlight.Enabled = false
+                return
+            end
+
+            if cfg.UseCursorAim then
+                local mp = UIS:GetMouseLocation()
+                cfg.CrosshairPosition = Vector2.new(math.clamp(mp.X, 0, cam.ViewportSize.X), math.clamp(mp.Y, 0, cam.ViewportSize.Y))
+            end
+            if cfg.CrosshairRotationEnabled then
+                rotation_angle = rotation_angle + cfg.CrosshairRotationSpeed * dt
+            end
+            update_crosshair()
+            fov_circle.Position = cfg.CrosshairPosition
+            fov_circle.Radius = cfg.FOVRadius
+            fov_circle.Color = Color3.fromHSV((cfg.FOVHue or 0) / 360, 1, 1)
+            fov_circle.Thickness = cfg.FOVCircleThickness
+            fov_circle.Transparency = cfg.FOVCircleTransparency
+            fov_circle.Visible = cfg.FOVCircleEnabled and cfg.Enabled
+
+            local target_part = get_target()
+            if target_part then
+                local char = target_part.Parent
+                if cfg.HighlightEnabled then
+                    highlight.Adornee = char
+                    highlight.Enabled = true
+                else
+                    highlight.Enabled = false
+                end
+                if cfg.TracerEnabled then
+                    local sp, on_screen = cam:WorldToViewportPoint(get_aim_position(target_part))
+                    if on_screen then
+                        tracer.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
+                        tracer.To = Vector2.new(sp.X, sp.Y)
+                        tracer.Color = Color3.fromHSV((cfg.TracerHue or 0) / 360, 1, 1)
+                        tracer.Visible = true
+                    else
+                        tracer.Visible = false
+                    end
+                else
+                    tracer.Visible = false
+                end
+                if cfg.TargetInfoEnabled and current_target_plr then
+                    local my_char = LocalPlayer.Character
+                    local my_root = my_char and my_char:FindFirstChild("HumanoidRootPart")
+                    if my_root then
+                        local dist = math.floor((my_root.Position - target_part.Position).Magnitude)
+                        info_text.Text = "🎃 " .. current_target_plr.Name .. " • " .. dist .. "m"
+                        info_text.Position = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2 - 50)
+                        info_text.Color = Color3.fromRGB(255, 130, 30)
+                        info_text.Visible = true
+                    else
+                        info_text.Visible = false
+                    end
+                else
+                    info_text.Visible = false
+                end
+            else
+                highlight.Enabled = false
+                tracer.Visible = false
+                info_text.Visible = false
+            end
+        end)
+
+        if hookmetamethod and checkcaller then
+            local old_index
+            old_index = hookmetamethod(game, "__index", function(self, key)
+                if not checkcaller() and cfg.Enabled and self == mouse and not ui_flow_active then
+                    if key == "Hit" then
+                        local target = get_target()
+                        if target then return CFrame.new(get_aim_position(target)) end
+                    elseif key == "Target" then
+                        local target = get_target()
+                        if target then return target end
+                    end
+                end
+                return old_index(self, key)
+            end)
+        end
+
+        pcall(function()
+            local modules = ReplicatedStorage:FindFirstChild("Modules")
+            if modules then
+                local gun_handler = modules:FindFirstChild("GunHandler")
+                if gun_handler then
+                    local handler = require(gun_handler)
+                    if handler and handler.getAim then
+                        local old_get_aim = handler.getAim
+                        handler.getAim = function(origin, max_dist)
+                            if not cfg.Enabled or not is_holding_tool() or ui_flow_active then return old_get_aim(origin, max_dist) end
+                            if cfg.RevolverBypass then
+                                local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                                if tool and tool.Name == "[Revolver]" then return old_get_aim(origin, max_dist) end
+                            end
+                            local target = get_target()
+                            if target then
+                                local aim_pos = get_aim_position(target)
+                                return (aim_pos - origin).Unit, math.min((aim_pos - origin).Magnitude, max_dist or 200)
+                            end
+                            return old_get_aim(origin, max_dist)
+                        end
+                    end
+                end
+            end
+        end)
+
+        local drag_cross = false
+        local drag_offset = Vector2.new(0, 0)
+        UIS.TouchBegan:Connect(function(touch)
+            if ui_flow_active then return end
+            if is_touch_on_ui(touch.Position) then return end
+            if cfg.FollowTarget and get_target() then return end
+            if cfg.UseCursorAim then return end
+            local pos = touch.Position
+            local dist = (pos - cfg.CrosshairPosition).Magnitude
+            if dist <= cfg.FOVRadius + 20 then
+                drag_cross = true
+                drag_offset = pos - cfg.CrosshairPosition
+            end
+        end)
+        UIS.TouchMoved:Connect(function(touch)
+            if drag_cross then cfg.CrosshairPosition = touch.Position - drag_offset end
+        end)
+        UIS.TouchEnded:Connect(function() drag_cross = false end)
+        UIS.InputBegan:Connect(function(input, gp)
+            if gp then return end
+            if ui_flow_active then return end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if is_touch_on_ui(Vector2.new(input.Position.X, input.Position.Y)) then return end
+            end
+            if cfg.FollowTarget and get_target() then return end
+            if cfg.UseCursorAim then return end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                local pos = Vector2.new(input.Position.X, input.Position.Y)
+                local dist = (pos - cfg.CrosshairPosition).Magnitude
+                if dist <= cfg.FOVRadius + 20 then
+                    drag_cross = true
+                    drag_offset = pos - cfg.CrosshairPosition
+                end
+            end
+        end)
+        UIS.InputChanged:Connect(function(input)
+            if drag_cross and input.UserInputType == Enum.UserInputType.MouseMovement then
+                cfg.CrosshairPosition = Vector2.new(input.Position.X, input.Position.Y) - drag_offset
+            end
+        end)
+        UIS.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then drag_cross = false end
+        end)
+
+        -- 🎃 right-click (PC) toggles the game's shiftlock 🎃
+        UIS.InputBegan:Connect(function(input, gp)
+            if ui_flow_active then return end
+            if not cfg.RightClickShiftlock then return end
+            if input.UserInputType == Enum.UserInputType.MouseButton2 then
+                try_toggle_shiftlock()
+            end
+        end)
+
+        -- 🎃 two-finger tap (mobile) toggles the game's shiftlock 🎃
+        local counted_touches = {}
+        UIS.TouchStarted:Connect(function(input)
+            if ui_flow_active then return end
+            if not cfg.RightClickShiftlock then return end
+            if is_touch_on_ui(input.Position) then return end
+            counted_touches[input] = true
+            local count = 0
+            for _ in pairs(counted_touches) do count = count + 1 end
+            if count >= 2 then
+                counted_touches = {}
+                try_toggle_shiftlock()
+            end
+        end)
+        UIS.TouchEnded:Connect(function(input)
+            counted_touches[input] = nil
+        end)
+
+        UIS.InputBegan:Connect(function(input, gp)
+            if gp then return end
+            if ui_flow_active then return end
+            if input.KeyCode == cfg.ToggleKey then
+                cfg.Enabled = not cfg.Enabled
+                notify("🎃 silent aim", cfg.Enabled and "enabled 🎃" or "disabled 💀", 2)
+            end
+        end)
+
+        task.spawn(function()
+            while task.wait(0.5) do pcall(function() setfpscap(240) end) end
+        end)
+
+        print("[livyii] silent aim core loaded")
+    end)
+    if not ok then
+        warn("[livyii] silent aim error: " .. tostring(err))
+    end
+end)
+
+print("[livyii] script fully loaded 🎃")
